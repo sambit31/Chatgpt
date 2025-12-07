@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { User } from "../models/user.models.js";
 import * as aiService from "../service/ai.service.js";
 
+
 export default function initSocketServer(httpServer) {
   const io = new Server(httpServer, {
     cors: {
