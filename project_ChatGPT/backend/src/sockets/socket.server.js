@@ -59,12 +59,20 @@ export default function initSocketServer(httpServer) {
       });
  
 
-       // Fetch chat history
-      const chatHistory = await MessageModel.find({ chat: messagePayload.chat });
-        
-      const response = await aiService.generateResponse(chatHistory.map(msg => ({ role: msg.role, content: msg.content })));
+    //Fetch full chat history
+    const chatHistory = await MessageModel.find({
+      chat: messagePayload.chat
+    }).sort({ createdAt: 1 });
 
-      // Save AI message
+    const geminiMessages = chatHistory.map(msg => ({
+      role: msg.role, // "user" | "model"
+      parts: [{ text: msg.content }]
+    }));
+
+        
+    const response = await aiService.generateResponse(geminiMessages);
+
+    // Save AI message
       await MessageModel.create({
         chat: messagePayload.chat,
         user: socket.user._id,
