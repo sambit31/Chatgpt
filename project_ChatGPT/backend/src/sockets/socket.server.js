@@ -4,6 +4,8 @@ import jwt from "jsonwebtoken";
 import { User } from "../models/user.models.js";
 import * as aiService from "../service/ai.service.js";
 import { MessageModel } from "../models/message.model.js";
+import { createMemoryVector } from "../service/vector.service.js";
+import { queryMemoryVector } from "../service/vector.service.js";
 
 
 export default function initSocketServer(httpServer) {
@@ -47,8 +49,10 @@ export default function initSocketServer(httpServer) {
       console.log("Received:", messagePayload);
 
       // Generate AI response
-      const responseText = await aiService.generateResponse(messagePayload.content);
+     // const responseText = await aiService.generateResponse(messagePayload.content);
 
+      const vectors = await aiService.generateVector(messagePayload.content);
+      console.log("Generated Vectors:", vectors);
 
       // Save user message
       await MessageModel.create({
@@ -58,32 +62,47 @@ export default function initSocketServer(httpServer) {
         role: 'user'
       });
  
+  // 2️⃣ Fetch recent history
+  const chatHistory = await MessageModel.find({
+    chat: messagePayload.chat
+  }).sort({ createdAt: 1 }).limit(20).lean();
 
-    //Fetch full chat history
-    const chatHistory = await MessageModel.find({
-      chat: messagePayload.chat
-    }).sort({ createdAt: 1 });
+  // 3️⃣ Convert to Gemini format
+  const geminiMessages = chatHistory.map(msg => ({
+    role: msg.role,
+    parts: [{ text: msg.content }]
+  }));
 
-    const geminiMessages = chatHistory.map(msg => ({
-      role: msg.role, // "user" | "model"
-      parts: [{ text: msg.content }]
-    }));
+     
+// 4️⃣ Generate AI response
+  const response = await aiService.generateResponse(geminiMessages);
 
-        
-    const response = await aiService.generateResponse(geminiMessages);
+// 5️⃣ Save AI response
+    const aiMessage = await MessageModel.create({
+    chat: messagePayload.chat,
+    user: socket.user._id,
+    content: response,
+    role: "model"
+  });
 
-    // Save AI message
-      await MessageModel.create({
-        chat: messagePayload.chat,
-        user: socket.user._id,
-        content: response,
-        role: 'model'
-      });
+// 6️⃣ Store vector memory
+  const responsevectors = await aiService.generateVector(response);
 
-       console.log("AI Response:", responseText);
+  await createMemoryVector({
+    vector: responsevectors,
+    metadata: {
+      chatId: messagePayload.chat,
+      userId: socket.user._id.toString(),
+      text: response
+    },
+    messageId: aiMessage._id.toString()
+  });
+
+       console.log("AI Response:", response);//responseText
       // Send back to client
       socket.emit("ai-response", {
-        content: responseText,
+        //content: responseText,
+        content: response,
         chat: messagePayload.chat,
       });
     });
