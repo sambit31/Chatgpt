@@ -55,7 +55,7 @@ export default function initSocketServer(httpServer) {
       console.log("Generated Vectors:", vectors);
 
       // Save user message
-      await MessageModel.create({
+      const userMessage = await MessageModel.create({
         chat: messagePayload.chat,
         user: socket.user._id,
         content: messagePayload.content,
@@ -85,18 +85,33 @@ export default function initSocketServer(httpServer) {
     role: "model"
   });
 
+// 8️⃣ Store memory vectors
+    await createMemoryVector({
+    vector: vectors,
+    metadata: {
+      type: "question",
+      text: messagePayload.content,
+      chatId: messagePayload.chat,
+      userId: socket.user._id.toString(),
+    },
+    messageId: userMessage._id.toString()
+  });
+
+
 // 6️⃣ Store vector memory
   const responsevectors = await aiService.generateVector(response);
 
   await createMemoryVector({
     vector: responsevectors,
     metadata: {
-      chatId: messagePayload.chat,
-      userId: socket.user._id.toString(),
-      text: response
+     type: "answer",
+        text: response,
+        chatId: messagePayload.chat,
+        userId: socket.user._id.toString()
     },
     messageId: aiMessage._id.toString()
   });
+
 
        console.log("AI Response:", response);//responseText
       // Send back to client
