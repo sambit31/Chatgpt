@@ -18,13 +18,15 @@ export async function createMemoryVector({ vector, metadata, messageId }) {
 }
 
 export async function queryMemoryVector({ queryVector, limit = 5, metadata }) {
+  const data = await index.query({
+    vector: queryVector,
+    topK: limit,
+    includeMetadata: true,
+    filter: metadata ? {
+      userId: { "$eq": metadata.userId },
+      chatId: { "$eq": metadata.chatId }
+    } : undefined
+  });
 
-    const data = await index.query({
-        vector: queryVector,
-        topK: limit,
-        includeMetadata: true,
-        filter: metadata ? { metadata } : undefined,
-    })
-
-    return data.matches;
+  return data.matches || [];
 }
