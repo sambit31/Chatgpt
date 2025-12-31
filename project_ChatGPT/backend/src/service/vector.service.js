@@ -1,32 +1,32 @@
-import { Pinecone } from '@pinecone-database/pinecone';
-import dotenv from 'dotenv';
-
+// Import the Pinecone library
+import { Pinecone } from "@pinecone-database/pinecone";
+import dotenv from "dotenv";
 dotenv.config();
 
-const pc = new Pinecone({
-    apiKey: process.env.PINECONE_API_KEY
-});
-const index = pc.index('chatgpt');
+// Initialize a Pinecone client with your API key
+const pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
 
+const cohortChatGptIndex = pc.Index('chatgpt');
 
-export async function createMemoryVector({ vector, metadata, messageId }) {
-    await index.upsert([{
+export async function createMemory({ vectors, metadata, messageId }) {
+    await cohortChatGptIndex.upsert([ {
         id: messageId,
-        values: vector,
+        values: vectors,
         metadata
     } ])
 }
 
-export async function queryMemoryVector({ queryVector, limit = 5, metadata }) {
-  const data = await index.query({
-    vector: queryVector,
-    topK: limit,
-    includeMetadata: true,
-    filter: metadata ? {
-      userId: { "$eq": metadata.userId },
-      chatId: { "$eq": metadata.chatId }
-    } : undefined
-  });
 
-  return data.matches || [];
+export async function queryMemory({ queryVector, limit = 5, metadata }) {
+
+    const data = await cohortChatGptIndex.query({
+        vector: queryVector,
+        topK: limit,
+        filter: metadata ? metadata : undefined,
+        includeMetadata: true
+    })
+
+    return data.matches
+
 }
+

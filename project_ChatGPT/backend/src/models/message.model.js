@@ -3,12 +3,12 @@ import mongoose from 'mongoose';
 const messageSchema = new mongoose.Schema({
     user:{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        ref: 'UserModel',
         required: true
     },
     chat:{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Chat',
+        ref: 'ChatModel',
         required: true
     },
     role:{
@@ -22,4 +22,4 @@ const messageSchema = new mongoose.Schema({
     }
 });
 
-export const MessageModel = mongoose.model("Message", messageSchema);
+export const messageModel = mongoose.model("Message", messageSchema);

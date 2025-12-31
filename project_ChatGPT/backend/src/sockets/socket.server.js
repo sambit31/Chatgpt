@@ -1,238 +1,170 @@
-/* ============================
-   📦 IMPORTS
-============================ */
 import { Server } from "socket.io";
 import cookie from "cookie";
 import jwt from "jsonwebtoken";
-
-import { User } from "../models/user.models.js";
-import { MessageModel } from "../models/message.model.js";
-
+import { userModel } from "../models/user.models.js";
 import * as aiService from "../service/ai.service.js";
-import {createMemoryVector,queryMemoryVector} from "../service/vector.service.js";
+import {messageModel} from "../models/message.model.js";
+import { createMemory, queryMemory } from "../service/vector.service.js";
 
 
-/* ============================
-   🚀 SOCKET SERVER INIT
-============================ */
-export default function initSocketServer(httpServer) {
+export function initSocketServer(httpServer) {
 
-  const io = new Server(httpServer, {
-    cors: {
-      origin: "*",
-      credentials: true,
-      methods: ["GET", "POST"]
-    }
-  });
+    const io = new Server(httpServer, {
+        cors: {
+            origin: "http://localhost:5000",
+            allowedHeaders: [ "Content-Type", "Authorization" ],
+            credentials: true
+        }
+    })
 
+    io.use(async (socket, next) => {
 
-  /* ============================
-     🔐 JWT AUTH MIDDLEWARE
-  ============================ */
-  io.use(async (socket, next) => {
-    try {
-      const rawCookie = socket.handshake.headers.cookie;
-      if (!rawCookie) return next(new Error("No cookies found"));
+        const cookies = cookie.parse(socket.handshake.headers?.cookie || "");
 
-      const cookies = cookie.parse(rawCookie);
-      if (!cookies.token) return next(new Error("Token missing in cookies"));
+        if (!cookies.token) {
+            next(new Error("Authentication error: No token provided"));
+        }
 
-      const decoded = jwt.verify(cookies.token, process.env.JWT_SECRET);
+        try {
 
-      const user = await User
-        .findById(decoded.userId)
-        .select("-password");
+            const decoded = jwt.verify(cookies.token, process.env.JWT_SECRET);
 
-      if (!user) return next(new Error("User not found"));
+            const user = await userModel.findById(decoded.userId);
 
-      socket.user = user;
-      next();
+            socket.user = user
 
-    } catch (err) {
-      console.error("Socket Auth Error:", err.message);
-      next(new Error("Authentication failed"));
-    }
-  });
+            next()
 
+        } catch (err) {
+            next(new Error("Authentication error: Invalid token"));
+        }
 
-  /* ============================
-     🔌 SOCKET CONNECTION
-  ============================ */
-  io.on("connection", (socket) => {
-    console.log(`🟢 User Connected: ${socket.id} (${socket.user.email})`);
+    })
 
+    io.on("connection", (socket) => {
+        console.log(`✅ User connected: ${socket.user.email}`);
 
-    /* ============================
-       🤖 AI MESSAGE HANDLER
-    ============================ */
-    socket.on("ai-message", async (messagePayload) => {
-      console.log("Received:", messagePayload);
+        socket.on("ai-message", async (messagePayload) => {
+            try {
+                console.log(`📩 Message received from ${socket.user.email}: "${messagePayload.content?.substring(0, 50)}..."`);
 
-         /* ============================
-         1️⃣ SAVE USER MESSAGE (STM)
-      ============================ */
-      const userMessage = await MessageModel.create({
-        chat: messagePayload.chat,
-        user: socket.user._id,
-        content: messagePayload.content,
-        role: "user"
-      });
+                /* messagePayload = { chat:chatId, content:message text } */
+                
+                // Validate message content
+                if (!messagePayload.content || messagePayload.content.trim() === "") {
+                    socket.emit('error', { message: "Message content cannot be empty" });
+                    return;
+                }
 
-      /* ============================
-         2️⃣ VECTORIZE USER INPUT
-      ============================ */
-      const vectors = await aiService.generateVector(
-        messagePayload.content
-      );
+                const [ message, vectors ] = await Promise.all([
+                    messageModel.create({
+                        chat: messagePayload.chat,
+                        user: socket.user._id,
+                        content: messagePayload.content,
+                        role: "user"
+                    }),
+                    aiService.generateVector(messagePayload.content),
+                ]);
 
+                console.log(`✅ User message saved, embedding generated (${vectors.length} dims)`);
 
-      /* ============================
-         3️⃣ QUERY LONG-TERM MEMORY
-      ============================ */
-     /* ============================
-   3️⃣ QUERY LONG-TERM MEMORY
-============================ */
-const memory = await queryMemoryVector({
-  queryVector: vectors,
-  limit: 3,
-  metadata: {
-    userId: socket.user._id.toString(),
-    chatId: messagePayload.chat,
-    type: "answer"
-  }
-});
+                await createMemory({
+                    vectors,
+                    messageId: message._id.toString(),
+                    metadata: {
+                        chat: messagePayload.chat,
+                        user: socket.user._id.toString(),
+                        text: messagePayload.content
+                    }
+                });
 
-/* ✅ FILTER HIGH-SIMILARITY (SELF-ECHO) */
-const filteredMemory = memory.filter(m => m.score < 0.98);
+                console.log(`✅ Memory stored in vector DB`);
 
-console.log("Filtered Memory:", filteredMemory);
+                const [ memory, chatHistory ] = await Promise.all([
 
+                    queryMemory({
+                        queryVector: vectors,
+                        limit: 3,
+                        metadata: {
+                            user: socket.user._id.toString()
+                        }
+                    }),
 
-   
+                    messageModel.find({
+                        chat: messagePayload.chat
+                    }).sort({ createdAt: -1 }).limit(20).lean().then(messages => messages.reverse())
+                ]);
 
-      /* ============================
-         4️⃣ FETCH CHAT HISTORY (STM)
-      ============================ */
-      const chatHistory = await MessageModel.find({
-        chat: messagePayload.chat
-      })
-        .sort({ createdAt: 1 })
-        .limit(20)
-        .lean();
+                console.log(`✅ Retrieved ${chatHistory.length} history messages, ${memory.length} memory matches`);
 
+                const stm = chatHistory.map(item => {
+                    return {
+                        role: item.role,
+                        parts: [ { text: item.content } ]
+                    }
+                });
 
-      /* ============================
-         5️⃣ FORMAT SHORT-TERM MEMORY
-      ============================ */
-    /*  const geminiMessages = chatHistory.map(msg => ({
-        role: msg.role,
-        parts: [{ text: msg.content }]
-      }));*/
+                const ltm = [
+                    {
+                        role: "user",
+                        parts: [ {
+                            text: `These are some previous messages from the chat, use them to generate a response:\n\n${memory.map(item => item.metadata.text).join("\n\n")}`
+                        } ]
+                    }
+                ];
 
+                console.log(`🤖 Generating AI response...`);
+                const response = await aiService.generateResponse([ ...ltm, ...stm ]);
 
-     /* ============================
-   🧹 FILTER DUPLICATE / TOO-SIMILAR MEMORY
-===========================
+                console.log(`✅ AI response generated: "${response.substring(0, 50)}..."`,response);
 
-/* ============================
-   6️⃣ FORMAT LONG-TERM MEMORY
-============================ */
-const ltm = filteredMemory.length
-  ? [{
-      role: "system",
-      parts: [{
-        text: `Use the following past information only if relevant:\n\n${filteredMemory
-          .map(m => m.metadata.text)
-          .join("\n")}`
-      }]
-    }]
-  : [];
+                // Validate AI response before saving
+                if (!response || response.trim() === "") {
+                    console.error("❌ Empty AI response received");
+                    socket.emit('error', { message: "AI generated an empty response" });
+                    return;
+                }
 
+                socket.emit('ai-response', {
+                    content: response,
+                    chat: messagePayload.chat
+                });
 
-      /* ============================
-         7️⃣ FILTER USER STM (SAFETY)
-      ============================ */
-      const stm = chatHistory
-        .slice(-3)
-        .filter(msg => msg.role === "user")
-        .map(msg => ({
-          role: "user",
-          parts: [{ text: msg.content }]
-        }));
+                const [ responseMessage, responseVectors ] = await Promise.all([
+                    messageModel.create({
+                        chat: messagePayload.chat,
+                        user: socket.user._id,
+                        content: response,
+                        role: "model"
+                    }),
+                    aiService.generateVector(response)
+                ]);
 
+                console.log(`✅ AI message saved to DB`);
 
-      /* ============================
-         8️⃣ RAG → AI RESPONSE
-      ============================ */
-      const response = await aiService.generateResponse(
-        ...ltm,
-        ...stm
-        //...geminiMessages
-      );
+                await createMemory({
+                    vectors: responseVectors,
+                    messageId: responseMessage._id.toString(),
+                    metadata: {
+                        chat: messagePayload.chat,
+                        user: socket.user._id.toString(),
+                        text: response
+                    }
+                });
 
+                console.log(`✅ AI response memory stored`);
 
-      /* ============================
-         9️⃣ SAVE AI RESPONSE (STM)
-      ============================ */
-      const aiMessage = await MessageModel.create({
-        chat: messagePayload.chat,
-        user: socket.user._id,
-        content: response,
-        role: "model"
-      });
+            } catch (error) {
+                console.error("❌ Error in ai-message handler:", error);
+                socket.emit('error', { 
+                    message: "Failed to process message",
+                    details: error.message 
+                });
+            }
+        });
 
-
-      /* ============================
-         🔟 STORE USER LTM
-      ============================ */
-      await createMemoryVector({
-        vector: vectors,
-        metadata: {
-          type: "question",
-          text: messagePayload.content,
-          chatId: messagePayload.chat,
-          userId: socket.user._id.toString()
-        },
-        messageId: userMessage._id.toString()
-      });
-
-
-      /* ============================
-         1️⃣1️⃣ STORE AI LTM
-      ============================ */
-      const responsevectors = await aiService.generateVector(response);
-
-      await createMemoryVector({
-        vector: responsevectors,
-        metadata: {
-          type: "answer",
-          text: response,
-          chatId: messagePayload.chat,
-          userId: socket.user._id.toString()
-        },
-        messageId: aiMessage._id.toString()
-      });
-
-
-      /* ============================
-         📤 SEND RESPONSE
-      ============================ */
-      socket.emit("ai-response", {
-        content: response,
-        chat: messagePayload.chat
-      });
-
-      console.log("AI Response:", response);
+        socket.on("disconnect", () => {
+            console.log(`👋 User disconnected: ${socket.user.email}`);
+        });
     });
-
-
-    /* ============================
-       🔴 DISCONNECT
-    ============================ */
-    socket.on("disconnect", () => {
-      console.log(`🔴 User Disconnected: ${socket.id}`);
-    });
-  });
-
-  return io;
 }

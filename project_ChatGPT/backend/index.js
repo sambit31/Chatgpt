@@ -5,7 +5,7 @@ import connectDB from './src/db/db.mongoose.js';
 import authRoutes from './src/routes/auth.routes.js';
 import chatRoutes from './src/routes/chat.routes.js';
 import { createServer } from 'http';
-import initSocketServer from './src/sockets/socket.server.js';
+import {initSocketServer} from './src/sockets/socket.server.js';
 
 dotenv.config();
 
