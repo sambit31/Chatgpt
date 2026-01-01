@@ -6,6 +6,7 @@ import authRoutes from './src/routes/auth.routes.js';
 import chatRoutes from './src/routes/chat.routes.js';
 import { createServer } from 'http';
 import {initSocketServer} from './src/sockets/socket.server.js';
+import cors from 'cors';
 
 dotenv.config();
 
@@ -13,6 +14,10 @@ const app = express();
 const PORT = process.env.PORT;
 
 // Middlewares
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true,
+}));
 app.use(express.json());
 app.use(cookies());
 
