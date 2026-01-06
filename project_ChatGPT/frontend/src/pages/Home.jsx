@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import Button from '../ui/Button.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import '../styles/base.css';
+import '../styles/home.css';
 
 const Home = () => {
   const { isAuthenticated, user } = useAuth();

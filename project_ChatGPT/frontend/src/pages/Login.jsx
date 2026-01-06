@@ -4,6 +4,7 @@ import Input from '../ui/Input';
 import Button from '../ui/Button';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
+import '../styles/login.css';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ const Login = () => {
       // Update auth context
       login(res.data.user);
 
-      navigate('/');
+
     } catch (err) {
       setError(
         err.response?.data?.message || 'Login failed. Please try again.'
@@ -45,9 +46,9 @@ const Login = () => {
       setLoading(false);
     }
   };
-
+  
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/chat" replace />;
   }
 
   return (

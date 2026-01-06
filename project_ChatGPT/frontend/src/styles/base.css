@@ -50,158 +50,15 @@ body {
   flex-direction: column;
 }
 
-/* Navigation */
-.navbar {
-  background-color: var(--surface);
-  border-bottom: 1px solid var(--border-color);
-  padding: 1rem 0;
-  box-shadow: var(--shadow-sm);
-}
+/* Navigation moved to ./navigation.css */
 
-.navbar-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.navbar-brand {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--accent);
-  text-decoration: none;
-}
-
-.navbar-menu {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.navbar-link {
-  color: var(--text-primary);
-  text-decoration: none;
-  font-weight: 500;
-  transition: color 0.2s;
-}
-
-.navbar-link:hover {
-  color: var(--accent);
-}
-
-.navbar-user {
-  color: var(--text-secondary);
-  font-size: 0.95rem;
-}
-
-.theme-toggle {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0.25rem;
-  display: flex;
-  align-items: center;
-  transition: transform 0.2s;
-}
-
-.theme-toggle:hover {
-  transform: scale(1.1);
-}
-
-/* Main Content */
+/* Page and card styles moved to ./home.css */
 .main-content {
   flex: 1;
   padding: 2rem 0;
 }
 
-.page {
-  min-height: calc(100vh - 200px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.page-container {
-  max-width: 800px;
-  width: 100%;
-  padding: 0 1.5rem;
-}
-
-.card {
-  background-color: var(--surface);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 2rem;
-  margin-top: 2rem;
-  box-shadow: var(--shadow-md);
-}
-
-/* Auth Pages */
-.auth-container {
-  width: 100%;
-  max-width: 450px;
-  padding: 0 1.5rem;
-}
-
-.auth-card {
-  background-color: var(--surface);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 2.5rem;
-  box-shadow: var(--shadow-lg);
-}
-
-.auth-card h1 {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-  color: var(--text-primary);
-}
-
-.auth-subtitle {
-  color: var(--text-secondary);
-  margin-bottom: 2rem;
-}
-
-.auth-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-.auth-button {
-  width: 100%;
-  margin-top: 0.5rem;
-}
-
-.auth-link {
-  text-align: center;
-  margin-top: 1.5rem;
-  color: var(--text-secondary);
-  font-size: 0.95rem;
-}
-
-.auth-link a {
-  color: var(--accent);
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.auth-link a:hover {
-  text-decoration: underline;
-}
-
-.error-message {
-  background-color: rgba(239, 68, 68, 0.1);
-  border: 1px solid var(--danger);
-  color: var(--danger);
-  padding: 0.75rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
-}
+/* Auth styles moved to ./login.css and ./registration.css */
 
 /* Button Styles */
 .btn {
@@ -306,44 +163,52 @@ body {
 h1 {
   font-size: 2.5rem;
   margin-bottom: 1rem;
-  color: var(--text-primary);
+  color: var(--text-main);
 }
 
 h2 {
   font-size: 1.5rem;
   margin-bottom: 0.75rem;
-  color: var(--text-primary);
+  color: var(--text-main);
 }
 
 p {
-  color: var(--text-secondary);
+  color: var(--text-muted);
   margin-bottom: 1rem;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .navbar-container {
-    flex-direction: column;
-    gap: 1rem;
-  }
-  
-  .navbar-menu {
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  
-  .auth-card {
-    padding: 1.5rem;
-  }
-  
-  h1 {
-    font-size: 2rem;
-  }
+
+/* Responsive adjustments moved to component styles */
+
+/* ===== THEME VARIABLES ===== */
+/* ===== THEME VARIABLES ===== */
+.app.light {
+  --bg-main: #f8fafc;
+  --bg-sidebar: #ffffff;
+  --bg-input: #ffffff;
+
+  --bg-ai: #e5e7eb;
+  --bg-user: #2563eb;
+
+  --text-main: #020617;
+  --text-muted: #64748b;
+
+  --border: #e5e7eb;
+  --hover: #f1f5f9;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
+.app.dark {
+  --bg-main: #0f172a;
+  --bg-sidebar: #020617;
+  --bg-input: #020617;
+
+  --bg-ai: #1e293b;
+  --bg-user: #2563eb;
+
+  --text-main: #e5e7eb;
+  --text-muted: #94a3b8;
+
+  --border: #1e293b;
+  --hover: #1e293b;
 }
+/* Navbar and chat styles moved to ./navigation.css and ./chat.css */

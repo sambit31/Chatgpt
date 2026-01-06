@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import useTheme from '../hooks/useTheme';
 import { useAuth } from '../contexts/AuthContext';
 import Button from '../ui/Button';
-import '../styles/base.css';
+import '../styles/navigation.css';
 
 const Navigation = () => {
   const { theme, toggleTheme } = useTheme();

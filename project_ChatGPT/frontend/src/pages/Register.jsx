@@ -4,6 +4,7 @@ import Input from '../ui/Input';
 import Button from '../ui/Button';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
+import '../styles/registration.css';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -62,7 +63,7 @@ const Register = () => {
       // update auth context with backend response
       register(res.data.user);
 
-      navigate('/');
+      navigate('/login');
     } catch (err) {
       if (err.response?.status === 409) {
         setError('Email already registered. Please login.');
@@ -75,7 +76,7 @@ const Register = () => {
   };
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return (
