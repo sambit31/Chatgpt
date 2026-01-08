@@ -50,7 +50,7 @@ export const loginUser = async (req, res) => {
 
         const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '24h' });
         
-        res.cookie('token', token);
+        res.cookie('token', token,{ httpOnly: true, secure:false, sameSite:'lax' });
         res.status(200).json({ message: "Login successful", user:{ email: user.email, fullName: user.fullName } });
     } catch (error) {
         console.error("Error in loginUser:", error);

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { io } from "socket.io-client";
 import {
   Send,
   Plus,
@@ -13,6 +14,7 @@ import {
 import '../styles/chat.css';
 import '../styles/navigation.css';
 import '../styles/base.css';
+import axios from 'axios';
 
 const Chat = () => {
   const [theme, setTheme] = useState('light');
@@ -20,53 +22,113 @@ const Chat = () => {
   const [currentChat, setCurrentChat] = useState(null);
   const [message, setMessage] = useState('');
 
-  const [chats, setChats] = useState([
-    { id: 1, title: 'Chat about AI', messages: [] },
-    { id: 2, title: 'React help', messages: [] }
-  ]);
+  const [chats, setChats] = useState([]);
+
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const [editingChatId, setEditingChatId] = useState(null);
   const [editingTitle, setEditingTitle] = useState('');
   const editInputRef = useRef(null);
+  const [showTitleModal, setShowTitleModal] = useState(false);
+  const [newChatTitle, setNewChatTitle] = useState('');
+  const modalInputRef = useRef(null);
+  const [socket, setsocket] = useState(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [currentChat?.messages]);
 
-  const createNewChat = () => {
+  useEffect(() => {
+    if (showTitleModal) {
+      setTimeout(() => modalInputRef.current?.focus(), 0);
+    }
+  }, [showTitleModal]);
+
+const createNewChat = async (title) => {
+  const chatTitle = (title && title.trim()) ? title.trim() : 'New Chat';
+  try {
+    const response = await axios.post(
+      "http://localhost:5000/api/chat/",
+      { title: chatTitle },
+      { withCredentials: true }
+    );
+
+    const chat = response.data.chat;
+
     const newChat = {
-      id: Date.now() + Math.floor(Math.random() * 1000),
-      title: 'New Chat',
+      id: chat.id || chat._id || Date.now(),
+      title: chat.title || chatTitle,
       messages: []
     };
+
     setChats(prev => [newChat, ...prev]);
     setCurrentChat(newChat);
-    setMessage('');
-    // focus the input so user can start typing
-    setTimeout(() => inputRef.current?.focus(), 0);
-  };
+
+    setEditingChatId(newChat.id);
+    setEditingTitle(newChat.title);
+
+    setShowTitleModal(false);
+    setNewChatTitle('');
+
+    setTimeout(() => editInputRef.current?.focus(), 0);
+    console.log("Chat created:", chat);
+  } catch (err) {
+    console.error("Create chat failed:", err.response?.data || err.message);
+  }
+};
+
+
+const handleCreateWithTitle = () => {
+  if (!newChatTitle.trim()) return;
+  createNewChat(newChatTitle);
+};
+
+
 
   const toggleTheme = () => {
     setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
   };
 
-  const handleSendMessage = () => {
-    if (!message.trim()) return;
+  
 
-    let activeChat = currentChat;
+useEffect(() => {
+  const fetchChats = async () => {
+    try {
+      const response = await axios.get(
+        "http://localhost:5000/api/chat/",
+        { withCredentials: true }
+      );
 
-    if (!activeChat) {
-      const newChat = {
-        id: Date.now(),
-        title: message.slice(0, 30),
-        messages: []
-      };
-      setChats([newChat, ...chats]);
-      activeChat = newChat;
-      setCurrentChat(newChat);
+      setChats(response.data.chats);
+
+      const tempSocket = io("http://localhost:5000", { withCredentials: true });
+
+      tempSocket.on("ai-response", (message) => {
+        console.log("AI Response received:", message);
+      });
+
+      setsocket(tempSocket);
+    } catch (err) {
+      console.error("Failed to fetch chats:", err);
     }
+  };
+
+  fetchChats();
+}, []); // ✅ run once on page load
+
+
+
+
+const handleSendMessage = () => {
+  if (!message.trim()) return;
+  if (!socket || !currentChat) return;
+  
+  socket.emit("ai-message", {
+    chat: currentChat.id,
+    content: message
+  });
+
 
     const userMessage = {
       id: Date.now(),
@@ -77,8 +139,12 @@ const Chat = () => {
         minute: '2-digit'
       })
     };
+let activeChat = currentChat;
+    const updatedMessages = [
+  ...(activeChat.messages || []),
+  userMessage
+];
 
-    const updatedMessages = [...activeChat.messages, userMessage];
 
     setChats(chats.map(chat =>
       chat.id === activeChat.id
@@ -158,19 +224,77 @@ const Chat = () => {
         {/* Sidebar */}
         <aside className={`chat-sidebar ${!sidebarOpen ? 'closed' : ''}`}>
           <div className="sidebar-header">
-            <button className="new-chat-btn" onClick={createNewChat}>
+            <button className="new-chat-btn" onClick={() => setShowTitleModal(true)}>
               <Plus size={18} />
               New Chat
             </button>
+
+            {showTitleModal && (
+              <div
+                className="modal-overlay"
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'rgba(0,0,0,0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 1000
+                }}
+                onMouseDown={() => { setShowTitleModal(false); setNewChatTitle(''); }}
+              >
+                <div
+                  className="modal"
+                  style={{
+                    background: theme === 'light' ? '#fff' : '#222',
+                    color: theme === 'light' ? '#000' : '#fff',
+                    padding: '1rem',
+                    borderRadius: '8px',
+                    boxShadow: '0 6px 18px rgba(0,0,0,0.2)',
+                    minWidth: '300px',
+                    maxWidth: '90%'
+                  }}
+                  onMouseDown={e => e.stopPropagation()}
+                >
+                  <h3 style={{ margin: 0, marginBottom: '0.5rem' }}>New Chat</h3>
+                  <input
+                    ref={modalInputRef}
+                    className="chat-title-input"
+                    value={newChatTitle}
+                    onChange={e => setNewChatTitle(e.target.value)}
+                    placeholder="Enter chat title"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleCreateWithTitle();
+                      } else if (e.key === 'Escape') {
+                        setShowTitleModal(false);
+                        setNewChatTitle('');
+                      }
+                    }}
+                    style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                  />
+
+                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                    <button onClick={() => { setShowTitleModal(false); setNewChatTitle(''); }}>Cancel</button>
+                    <button onClick={handleCreateWithTitle} disabled={!newChatTitle.trim()}>OK</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="sidebar-content">
             <div className="sidebar-title">Recent Chats</div>
             {chats.map(chat => (
               <div
-                key={chat.id}
+                key={chat.id || chat._id}
                 className={`chat-list-item ${currentChat?.id === chat.id ? 'active' : ''}`}
-                onClick={() => setCurrentChat(chat)}
+                onClick={() =>
+                setCurrentChat({...chat,messages: chat.messages || []})}
               >
                 <MessageSquare size={16} />
                 {editingChatId === chat.id ? (
@@ -202,7 +326,7 @@ const Chat = () => {
         <main className="chat-main">
           <div className="chat-messages">
             <div className="chat-messages-container">
-              {!currentChat || currentChat.messages.length === 0 ? (
+              {!currentChat || !currentChat.messages || currentChat.messages.length === 0 ? (
                 <div className="empty-state">
                   <MessageSquare className="empty-state-icon" />
                   <h2>Start a Conversation</h2>
