@@ -97,24 +97,36 @@ export function initSocketServer(httpServer) {
 
                 console.log(`✅ Retrieved ${chatHistory.length} history messages, ${memory.length} memory matches`);
 
-                const stm = chatHistory.map(item => {
-                    return {
-                        role: item.role,
-                        parts: [ { text: item.content } ]
-                    }
-                });
+                const stm = chatHistory.map(m => ({
+                    role: m.role === "model" ? "model" : "user",
+                    parts: [{ text: m.content }]
+                }));
 
-                const ltm = [
-                    {
-                        role: "user",
-                        parts: [ {
-                            text: `These are some previous messages from the chat, use them to generate a response:\n\n${memory.map(item => item.metadata.text).join("\n\n")}`
-                        } ]
-                    }
-                ];
+               const ltm = {
+  role: "system",
+  parts: [{
+    text: `
+You are an AI assistant.
+
+Below is background memory from earlier conversations.
+This memory may or may not be relevant.
+
+Rules:
+- Do NOT respond to this memory directly.
+- Use it only if it helps answer the user's latest message.
+- The user's last message is always the highest priority.
+
+Long-term memory:
+${memory.map(m => "- " + m.metadata.text).join("\n")}
+`
+  }]
+};
 
                 console.log(`🤖 Generating AI response...`);
-                const response = await aiService.generateResponse([ ...ltm, ...stm ]);
+                const response = await aiService.generateResponse([
+  ltm,
+  ...stm
+]);
 
                 console.log(`✅ AI response generated: "${response.substring(0, 50)}..."`,response);
 

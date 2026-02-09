@@ -100,13 +100,49 @@ useEffect(() => {
         { withCredentials: true }
       );
 
-      setChats(response.data.chats);
+      const normalizedChats = response.data.chats.map(chat => ({
+  ...chat,
+  messages: [] // 🔥 critical
+}));
 
-      const tempSocket = io("http://localhost:5000", { withCredentials: true });
+setChats(normalizedChats);
 
-      tempSocket.on("ai-response", (message) => {
-        console.log("AI Response received:", message);
+// auto-open first chat (optional but UX-friendly)
+if (!currentChat && normalizedChats.length > 0) {
+  setCurrentChat(normalizedChats[0]);
+}
+
+
+      const tempSocket = io("http://localhost:5000", {
+        withCredentials: true
       });
+
+  tempSocket.on("ai-response", (data) => {
+  const aiMessage = {
+    id: Date.now(),
+    text: data.content,
+    sender: "ai",
+    timestamp: new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit"
+    })
+  };
+
+  setChats(prev =>
+    prev.map(chat =>
+      chat.id === data.chat
+        ? { ...chat, messages: [...chat.messages, aiMessage] }
+        : chat
+    )
+  );
+
+  setCurrentChat(prev =>
+    prev?.id === data.chat
+      ? { ...prev, messages: [...prev.messages, aiMessage] }
+      : prev
+  );
+});
+
 
       setsocket(tempSocket);
     } catch (err) {
@@ -115,68 +151,90 @@ useEffect(() => {
   };
 
   fetchChats();
-}, []); // ✅ run once on page load
-
+}, []);
 
 
 
 const handleSendMessage = () => {
   if (!message.trim()) return;
   if (!socket || !currentChat) return;
-  
+
   socket.emit("ai-message", {
     chat: currentChat.id,
     content: message
   });
 
+  const userMessage = {
+    id: Date.now(),
+    text: message,
+    sender: "user",
+    timestamp: new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit"
+    })
+  };
 
-    const userMessage = {
-      id: Date.now(),
-      text: message,
-      sender: 'user',
-      timestamp: new Date().toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    };
-let activeChat = currentChat;
-    const updatedMessages = [
-  ...(activeChat.messages || []),
-  userMessage
-];
+  const updatedMessages = [
+    ...currentChat.messages ,
+    userMessage
+  ];
 
-
-    setChats(chats.map(chat =>
-      chat.id === activeChat.id
+  setChats(prev =>
+    prev.map(chat =>
+      chat.id === currentChat.id
         ? { ...chat, messages: updatedMessages }
         : chat
-    ));
+    )
+  );
 
-    setCurrentChat({ ...activeChat, messages: updatedMessages });
-    setMessage('');
+  setCurrentChat(prev =>
+    prev ? { ...prev, messages: updatedMessages } : prev
+  );
 
-    setTimeout(() => {
-      const aiMessage = {
-        id: Date.now() + 1,
-        text: "I'm here to help! This is a simulated AI response.",
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit'
-        })
-      };
+  setMessage("");
+};
 
-      const newMessages = [...updatedMessages, aiMessage];
+const handleGetMessages = async (chatId) => {
+  try {
+    const response = await axios.get(
+      `http://localhost:5000/api/chat/${chatId}`,
+      { withCredentials: true }
+    );
 
-      setChats(chats.map(chat =>
-        chat.id === activeChat.id
-          ? { ...chat, messages: newMessages }
+    console.log("FULL API RESPONSE:", response.data);
+
+    const messages =
+      response.data.messages ||
+      response.data.chat?.messages ||
+      [];
+
+    const formattedMessages = messages.map(msg => ({
+      id: msg._id,
+      text: msg.content,
+      sender: msg.role === "user" ? "user" : "ai",
+      timestamp: new Date(msg.createdAt).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+      })
+    }));
+
+    setChats(prev =>
+      prev.map(chat =>
+        chat.id === chatId || chat._id === chatId
+          ? { ...chat, messages: formattedMessages }
           : chat
-      ));
+      )
+    );
 
-      setCurrentChat({ ...activeChat, messages: newMessages });
-    }, 1000);
-  };
+    setCurrentChat(prev =>
+      prev ? { ...prev, messages: formattedMessages } : prev
+    );
+
+  } catch (err) {
+    console.error("Failed to fetch messages:", err);
+  }
+};
+
 
   const startEditing = (chat) => {
     setEditingChatId(chat.id);
@@ -293,8 +351,11 @@ let activeChat = currentChat;
               <div
                 key={chat.id || chat._id}
                 className={`chat-list-item ${currentChat?.id === chat.id ? 'active' : ''}`}
-                onClick={() =>
-                setCurrentChat({...chat,messages: chat.messages || []})}
+                onClick={() => {
+  setCurrentChat(chat);
+  handleGetMessages(chat.id);
+}}
+
               >
                 <MessageSquare size={16} />
                 {editingChatId === chat.id ? (

@@ -37,3 +37,11 @@ export const getchats = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 }   
+
+export async function getMessages(req, res) {
+    // Implementation for getting messages of a specific chat
+    const chatId = req.params.id;
+    // Add logic here to retrieve messages for the specified chatId
+    const messages = await MessageModel.find({ chat: chatId }).sort({ createdAt: 1 });
+    res.status(200).json({ messages });
+}
